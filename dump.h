@@ -30,13 +30,13 @@ struct FNameEntry {
 	}name;
 };
 
-inline unsigned __int64 ImageBase = 0x7FF660B20000;			// Need to modify
+inline unsigned __int64 ImageBase = 0x7FF770920000;			// Need to modify
 
 inline unsigned __int64 GNameOffset = 0x7440B40;			// Need to modify
 inline unsigned __int64 GUObjectArrayOffset = 0x747D240;	// Need to modify
 
 inline unsigned __int64 GName = ImageBase + GNameOffset + 0x10;
-inline  unsigned __int64 GUObjectArray = ImageBase + GUObjectArrayOffset + 0x10; // 0x7FF660B20000 + 0x747D240 + 10
+inline  unsigned __int64 GUObjectArray = ImageBase + GUObjectArrayOffset + 0x10; 
 
 static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::string& strName);
 

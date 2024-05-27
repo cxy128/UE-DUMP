@@ -7,7 +7,18 @@
 
 HANDLE ProcessHandle;
 
-static bool GetProcessHandle(DWORD ProcessId) {
+static bool GetProcessHandle(HANDLE ProcessId) {
+
+	HWND hwnd = FindWindowA("UnrealWindow", nullptr);
+	if (!hwnd) {
+		return false;
+	}
+
+	DWORD ProcessId = 0;
+	auto ThreadId = GetWindowThreadProcessId(hwnd, &ProcessId);
+	if (!ProcessId) {
+		return false;
+	}
 
 	ProcessHandle = OpenProcess(PROCESS_ALL_ACCESS, false, ProcessId);
 	if (!ProcessHandle) {
@@ -24,7 +35,7 @@ int main() {
 		return 0;
 	}
 
-	if (!GetProcessHandle(0xffffffff)) {
+	if (!GetProcessHandle()) {
 		__debugbreak();
 		return 0;
 	}

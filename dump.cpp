@@ -43,7 +43,7 @@ static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::
 
 	strName.assign(NameEntry.name.AnsiName, NameEntry.Header.Len);
 
-	if (strName.find("null") != strName.npos || strName.find("None") != strName.npos) {
+	if (strName.find("null") != strName.npos || strName.find("None") != strName.npos || strName.empty()) {
 		return false;
 	}
 
@@ -97,7 +97,7 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 
 	ObjectName = "";
 	if (!GetName(ProcessHandle, UObjectAddress, ObjectName)) {
-		return false;
+		return true;
 	}
 
 	OuterObjectName = OuterObjectName + "." + ObjectName;
@@ -213,24 +213,16 @@ void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 			continue;
 		}
 
-		unsigned __int64 Address = 0;
-		NTSTATUS Status = STATUS_SUCCESS;
-
-		Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + i * 8ull), &Address, sizeof(unsigned __int64), nullptr);
-		if (NT_ERROR(Status)) {
-			continue;
-		}
-
 		std::string ClassName = {};
-		if (!GetClassPrivateName(ProcessHandle, Address, ClassName)) {
+		if (!GetClassPrivateName(ProcessHandle, UObjectAddress, ClassName)) {
 			continue;
 		}
 
 		std::string OuterObjectName = {};
-		if (!GetOuterPrivateName(ProcessHandle, Address, OuterObjectName)) {
+		if (!GetOuterPrivateName(ProcessHandle, UObjectAddress, OuterObjectName)) {
 			continue;
 		}
 
-		printf_s("address: %08llx\tclass: %-24s\tObjectName %s\n", UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
+		printf_s("[%08lu]\taddress: %08llx\tclass: %-24s\tObjectName %s\n", i,UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
 	}
 }
