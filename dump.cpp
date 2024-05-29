@@ -21,9 +21,9 @@ static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::
 
 	auto BlockIndex = CurrentFName.ComparisonIndex >> 0x10llu;
 	auto Offset = CurrentFName.ComparisonIndex & 0xffffllu;
-	if ((BlockIndex > (GNameId & 0xffffffff)) || (Offset > ((GNameId >> 32) & 0xffffffff))) {
-		return false;
-	}
+	//if ((BlockIndex > (GNameId & 0xffffffff)) || (Offset > ((GNameId >> 32) & 0xffffffff))) {
+	//	return false;
+	//}
 
 	unsigned __int64 Block = 0;
 	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GName + BlockIndex * 8llu), &Block, sizeof(unsigned __int64), nullptr);
@@ -45,6 +45,11 @@ static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::
 
 	if (strName.find("null") != strName.npos || strName.find("None") != strName.npos || strName.empty()) {
 		return false;
+	}
+
+	auto pos = strName.rfind('/');
+	if (pos != std::string::npos) {
+		strName = strName.substr(pos + 1);
 	}
 
 	return true;
@@ -133,20 +138,21 @@ void DumpUObjectByAddress(HANDLE ProcessHandle, unsigned __int64 UObjectAddress,
 
 // GUObjectArray
 
-static unsigned __int32 GetNumElements(HANDLE ProcessHandle) {
+static __int32 GetNumElements(HANDLE ProcessHandle) {
 
-	static unsigned __int32 NumElements = 0;
+	static __int32 NumElements = 0;
 	if (NumElements) {
 		return NumElements;
 	}
 
 	fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x14), &NumElements, sizeof(unsigned __int32), nullptr);
+
 	return NumElements;
 }
 
-static unsigned __int32 GetMaxElements(HANDLE ProcessHandle) {
+static __int32 GetMaxElements(HANDLE ProcessHandle) {
 
-	static unsigned __int32 MaxElements = 0;
+	static __int32 MaxElements = 0;
 	if (MaxElements) {
 		return MaxElements;
 	}
@@ -155,9 +161,9 @@ static unsigned __int32 GetMaxElements(HANDLE ProcessHandle) {
 	return MaxElements;
 }
 
-static unsigned __int32 GetNumChunks(HANDLE ProcessHandle) {
+static __int32 GetNumChunks(HANDLE ProcessHandle) {
 
-	static unsigned __int32 NumChunks = 0;
+	static __int32 NumChunks = 0;
 	if (NumChunks) {
 		return NumChunks;
 	}
@@ -196,7 +202,7 @@ static unsigned __int64 GetObjectPtr(HANDLE ProcessHandle, __int32 Index) {
 	}
 
 	unsigned __int64 Object = 0;
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(ObjectArray + WithinChunkIndex * 8llu), &Object, sizeof(unsigned __int64), nullptr);
+	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(ObjectArray + WithinChunkIndex * 0x18llu), &Object, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return 0;
 	}
@@ -206,23 +212,34 @@ static unsigned __int64 GetObjectPtr(HANDLE ProcessHandle, __int32 Index) {
 
 void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 
-	for (unsigned __int32 i = 0; i < GetNumElements(ProcessHandle); i++) {
+	for (__int32 i = 0; i < GetNumElements(ProcessHandle); i++) {
 
 		unsigned __int64 UObjectAddress = GetObjectPtr(ProcessHandle, i);
 		if (!UObjectAddress) {
 			continue;
 		}
 
-		std::string ClassName = {};
+		std::string ClassName = "";;
 		if (!GetClassPrivateName(ProcessHandle, UObjectAddress, ClassName)) {
 			continue;
 		}
 
-		std::string OuterObjectName = {};
+		std::string OuterObjectName = "";;
 		if (!GetOuterPrivateName(ProcessHandle, UObjectAddress, OuterObjectName)) {
 			continue;
 		}
 
-		printf_s("[%08lu]\taddress: %08llx\tclass: %-24s\tObjectName %s\n", i,UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
+		//std::string StaticClassName = "";
+
+		//StaticClassName = ClassName;
+		//StaticClassName += " ";
+		//StaticClassName += OuterObjectName;
+
+		//if (!OuterObjectName.compare("Engine.GameInstance")) {
+
+		//}
+
+		printf_s("[%08lu]\taddress: %08llx\tclass: %-36s\tObjectName: %s\n", i, UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
 	}
 }
+

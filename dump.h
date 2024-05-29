@@ -30,13 +30,13 @@ struct FNameEntry {
 	}name;
 };
 
-inline unsigned __int64 ImageBase = 0x7FF770920000;			// Need to modify
+inline unsigned __int64 ImageBase = 0x7FF781CD0000;			// Need to modify
 
 inline unsigned __int64 GNameOffset = 0x7440B40;			// Need to modify
 inline unsigned __int64 GUObjectArrayOffset = 0x747D240;	// Need to modify
 
 inline unsigned __int64 GName = ImageBase + GNameOffset + 0x10;
-inline  unsigned __int64 GUObjectArray = ImageBase + GUObjectArrayOffset + 0x10; 
+inline unsigned __int64 GUObjectArray = ImageBase + GUObjectArrayOffset + 0x10;  // 0x7FF7DA140000 + 0x747D240 + 0x10
 
 static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::string& strName);
 
@@ -46,11 +46,11 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 
 void DumpUObjectByAddress(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, unsigned __int32 DumpLength);
 
-static unsigned __int32 GetNumElements(HANDLE ProcessHandle);
+static __int32 GetNumElements(HANDLE ProcessHandle);
 
-static unsigned __int32 GetMaxElements(HANDLE ProcessHandle);
+static __int32 GetMaxElements(HANDLE ProcessHandle);
 
-static unsigned __int32 GetNumChunks(HANDLE ProcessHandle);
+static __int32 GetNumChunks(HANDLE ProcessHandle);
 
 static bool IsValidIndex(HANDLE ProcessHandle, __int32 Index);
 
