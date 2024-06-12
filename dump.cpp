@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <iostream>
+#include "intrin.h"
 #include "util.h"
 #include "dump.h"
 
@@ -112,6 +113,12 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 
 void DumpUObjectByAddress(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, unsigned __int32 DumpLength) {
 
+	auto Peb = reinterpret_cast<PEB*>(__readgsqword(0x60));
+
+	if (!ImageBaseAddress) {
+		ImageBaseAddress = reinterpret_cast<unsigned __int64>(Peb->ImageBaseAddress);
+	}
+
 	for (unsigned __int32 i = 0; i < DumpLength; i++) {
 
 		unsigned __int64 Address = 0;
@@ -212,6 +219,30 @@ static unsigned __int64 GetObjectPtr(HANDLE ProcessHandle, __int32 Index) {
 
 void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 
+	auto Peb = reinterpret_cast<PEB*>(__readgsqword(0x60));
+
+	if (!ImageBaseAddress) {
+		ImageBaseAddress = reinterpret_cast<unsigned __int64>(Peb->ImageBaseAddress);
+	}
+
+	auto ImageFilePath = std::wstring(Peb->ProcessParameters->ImagePathName.Buffer, Peb->ProcessParameters->ImagePathName.Length);
+
+	auto Position = ImageFilePath.find_last_of(L'\\') + 1;
+	auto ImageFileName = ImageFilePath.substr(Position);
+
+	Position = ImageFileName.find_last_of(L'.');
+	ImageFileName = ImageFileName.substr(0, Position).append(L"-GObjects-Dump.txt").c_str();
+
+	__debugbreak();
+
+	std::wstring str{L"C:\\Users\\15669\\Desktop\\Wuthering Waves\\"};		// TODO Need to modify
+	auto FileName = str.append(ImageFileName).c_str();
+
+	auto FileHandle = CreateFile(FileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (FileHandle == nullptr || FileHandle == INVALID_HANDLE_VALUE) {
+		return;
+	}
+
 	for (__int32 i = 0; i < GetNumElements(ProcessHandle); i++) {
 
 		unsigned __int64 UObjectAddress = GetObjectPtr(ProcessHandle, i);
@@ -219,12 +250,12 @@ void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 			continue;
 		}
 
-		std::string ClassName = "";;
+		std::string ClassName = "";
 		if (!GetClassPrivateName(ProcessHandle, UObjectAddress, ClassName)) {
 			continue;
 		}
 
-		std::string OuterObjectName = "";;
+		std::string OuterObjectName = "";
 		if (!GetOuterPrivateName(ProcessHandle, UObjectAddress, OuterObjectName)) {
 			continue;
 		}
@@ -235,11 +266,21 @@ void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 		//StaticClassName += " ";
 		//StaticClassName += OuterObjectName;
 
-		//if (!OuterObjectName.compare("Engine.GameInstance")) {
+		//if (!OuterObjectName.compare("CoreUObject.Struct")) {
 
 		//}
 
-		printf_s("[%08lu]\taddress: %08llx\tclass: %-36s\tObjectName: %s\n", i, UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
+		char buf[256ull << 1] = "";
+		sprintf_s(buf, 256ull << 1, "[%08lu]\taddress: %08llx\tclass: %-30s\tObjectName: %s\n", i, UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
+
+		auto NumberOfBytesToWrite = 0ul;
+		WriteFile(FileHandle, buf, strnlen_s(buf, 256), &NumberOfBytesToWrite, nullptr);
+
+		//printf_s(buf);
 	}
+
+	FlushFileBuffers(FileHandle);
+
+	CloseHandle(FileHandle);
 }
 
