@@ -8,23 +8,28 @@ bool InitSystemRoutineAddress() {
 		return false;
 	}
 
-	fZwQuerySystemInformation = (fnZwQuerySystemInformation)GetProcAddress(Handle, "ZwQuerySystemInformation");
-	if (!fZwQuerySystemInformation) {
+	ZwQuerySystemInformation = (fnZwQuerySystemInformation)GetProcAddress(Handle, "ZwQuerySystemInformation");
+	if (!ZwQuerySystemInformation) {
 		return false;
 	}
 
-	fZwAllocateVirtualMemory = (fnZwAllocateVirtualMemory)GetProcAddress(Handle, "ZwAllocateVirtualMemory");
-	if (!fZwAllocateVirtualMemory) {
+	ZwAllocateVirtualMemory = (fnZwAllocateVirtualMemory)GetProcAddress(Handle, "ZwAllocateVirtualMemory");
+	if (!ZwAllocateVirtualMemory) {
 		return false;
 	}
 
-	fZwReadVirtualMemory = (fnZwReadVirtualMemory)GetProcAddress(Handle, "NtReadVirtualMemory");
-	if (!fZwReadVirtualMemory) {
+	ZwReadVirtualMemory = (fnZwReadVirtualMemory)GetProcAddress(Handle, "NtReadVirtualMemory");
+	if (!ZwReadVirtualMemory) {
 		return false;
 	}
 
-	fZwWriteVirtualMemory = (fnZwWriteVirtualMemory)GetProcAddress(Handle, "ZwWriteVirtualMemory");
-	if (!fZwWriteVirtualMemory) {
+	ZwFreeVirtualMemory = (fnZwFreeVirtualMemory)GetProcAddress(Handle, "ZwFreeVirtualMemory");
+	if (!ZwFreeVirtualMemory) {
+		return false;
+	}
+
+	ZwWriteVirtualMemory = (fnZwWriteVirtualMemory)GetProcAddress(Handle, "ZwWriteVirtualMemory");
+	if (!ZwWriteVirtualMemory) {
 		return false;
 	}
 
@@ -36,19 +41,19 @@ unsigned __int64 GetSystemModuleBaseAddress(const char* ModuleName) {
 	NTSTATUS Status = 0;
 	unsigned long BytesReturned = 0;
 
-	Status = fZwQuerySystemInformation(SYSTEM_INFORMATION_CLASS::SystemModuleInformation, NULL, 0, &BytesReturned);
+	Status = ZwQuerySystemInformation(SYSTEM_INFORMATION_CLASS::SystemModuleInformation, NULL, 0, &BytesReturned);
 
 	if (Status == STATUS_INFO_LENGTH_MISMATCH) {
 
 		RTL_PROCESS_MODULES* ModuleBuffer = nullptr;
 		unsigned __int64 RegionSize = BytesReturned;
 
-		Status = fZwAllocateVirtualMemory(GetCurrentProcess(), (void**)&ModuleBuffer, 0, &RegionSize, MEM_COMMIT, PAGE_READWRITE);
+		Status = ZwAllocateVirtualMemory(GetCurrentProcess(), (void**)&ModuleBuffer, 0, &RegionSize, MEM_COMMIT, PAGE_READWRITE);
 		if (NT_ERROR(Status)) {
 			return 0;
 		}
 
-		Status = fZwQuerySystemInformation(SYSTEM_INFORMATION_CLASS::SystemModuleInformation, ModuleBuffer, BytesReturned, &BytesReturned);
+		Status = ZwQuerySystemInformation(SYSTEM_INFORMATION_CLASS::SystemModuleInformation, ModuleBuffer, BytesReturned, &BytesReturned);
 		if (NT_ERROR(Status)) {
 			return 0;
 		}

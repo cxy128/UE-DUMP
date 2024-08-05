@@ -8,41 +8,48 @@ static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::
 
 	NTSTATUS Status = STATUS_SUCCESS;
 
-	FName CurrentFName = {};
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + 0x18), &CurrentFName, sizeof(FName), nullptr);
+	FName NamePrivate = {};
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + 0x18), &NamePrivate, sizeof(FName), nullptr);
 	if (NT_ERROR(Status)) {
 		return false;
 	}
 
 	unsigned __int64 GNameId = 0;
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GName - 8), &GNameId, sizeof(unsigned __int64), nullptr);
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GName - 8), &GNameId, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return false;
 	}
 
-	auto BlockIndex = CurrentFName.ComparisonIndex >> 0x10llu;
-	auto Offset = CurrentFName.ComparisonIndex & 0xffffllu;
-	//if ((BlockIndex > (GNameId & 0xffffffff)) || (Offset > ((GNameId >> 32) & 0xffffffff))) {
-	//	return false;
-	//}
+	auto BlockIndex = NamePrivate.ComparisonIndex >> 0x10llu;
+	auto Offset = NamePrivate.ComparisonIndex & 0xffffllu;
+	if ((BlockIndex > (GNameId & 0xffffffff)) || (Offset > ((GNameId >> 32) & 0xffffffff))) {
+		return false;
+	}
 
 	unsigned __int64 Block = 0;
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GName + BlockIndex * 8llu), &Block, sizeof(unsigned __int64), nullptr);
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GName + BlockIndex * 8llu), &Block, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return false;
 	}
 
-	FNameEntry NameEntry = {};
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(Block + Offset * 2), &NameEntry, sizeof(FNameEntry), nullptr);
+	unsigned __int16 FNameEntryHeader = 0;
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(Block + Offset * 2), &FNameEntryHeader, sizeof(unsigned __int16), nullptr);
 	if (NT_ERROR(Status)) {
 		return false;
 	}
 
-	if (NameEntry.Header.Len < 1 || NameEntry.Header.Len > 0xff) {
+	auto Len = FNameEntryHeader >> 6;
+	if (Len < 1 || Len > 0xff) {
 		return false;
 	}
 
-	strName.assign(NameEntry.name.AnsiName, NameEntry.Header.Len);
+	char Name[0x400] = "";
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(Block + Offset * 2 + 2), Name, Len, nullptr);
+	if (NT_ERROR(Status)) {
+		return false;
+	}
+
+	strName.assign(Name, Len);
 
 	if (strName.find("null") != strName.npos || strName.find("None") != strName.npos || strName.empty()) {
 		return false;
@@ -61,7 +68,7 @@ static bool GetClassPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 	NTSTATUS Status = STATUS_SUCCESS;
 	unsigned __int64 ClassPrivate = 0;
 
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + 0x10), &ClassPrivate, sizeof(unsigned __int64), nullptr);
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + 0x10), &ClassPrivate, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return false;
 	}
@@ -74,7 +81,7 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 	NTSTATUS Status = STATUS_SUCCESS;
 	unsigned __int64 OuterUObjectAddress = 0;
 
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + 0x20), &OuterUObjectAddress, sizeof(unsigned __int64), nullptr);
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + 0x20), &OuterUObjectAddress, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return false;
 	}
@@ -88,12 +95,12 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 
 	for (;;) {
 
-		Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(OuterUObjectAddress + 0x20), &OuterUObjectAddress, sizeof(unsigned __int64), nullptr);
+		Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(OuterUObjectAddress + 0x20), &OuterUObjectAddress, sizeof(unsigned __int64), nullptr);
 		if (NT_ERROR(Status)) {
 			break;
 		}
 
-		ObjectName = "";
+		ObjectName.clear();
 		if (!GetName(ProcessHandle, OuterUObjectAddress, ObjectName)) {
 			break;
 		}
@@ -101,7 +108,7 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 		OuterObjectName = ObjectName + "." + OuterObjectName;
 	}
 
-	ObjectName = "";
+	ObjectName.clear();
 	if (!GetName(ProcessHandle, UObjectAddress, ObjectName)) {
 		return true;
 	}
@@ -113,18 +120,12 @@ static bool GetOuterPrivateName(HANDLE ProcessHandle, unsigned __int64 UObjectAd
 
 void DumpUObjectByAddress(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, unsigned __int32 DumpLength) {
 
-	auto Peb = reinterpret_cast<PEB*>(__readgsqword(0x60));
-
-	if (!ImageBaseAddress) {
-		ImageBaseAddress = reinterpret_cast<unsigned __int64>(Peb->ImageBaseAddress);
-	}
-
 	for (unsigned __int32 i = 0; i < DumpLength; i++) {
 
 		unsigned __int64 Address = 0;
 		NTSTATUS Status = STATUS_SUCCESS;
 
-		Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + i * 8ull), &Address, sizeof(unsigned __int64), nullptr);
+		Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(UObjectAddress + i * 8ull), &Address, sizeof(unsigned __int64), nullptr);
 		if (NT_ERROR(Status)) {
 			continue;
 		}
@@ -152,7 +153,7 @@ static __int32 GetNumElements(HANDLE ProcessHandle) {
 		return NumElements;
 	}
 
-	fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x14), &NumElements, sizeof(unsigned __int32), nullptr);
+	auto Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x14), &NumElements, sizeof(__int32), nullptr);
 
 	return NumElements;
 }
@@ -164,7 +165,7 @@ static __int32 GetMaxElements(HANDLE ProcessHandle) {
 		return MaxElements;
 	}
 
-	fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x10), &MaxElements, sizeof(unsigned __int32), nullptr);
+	ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x10), &MaxElements, sizeof(__int32), nullptr);
 	return MaxElements;
 }
 
@@ -175,7 +176,7 @@ static __int32 GetNumChunks(HANDLE ProcessHandle) {
 		return NumChunks;
 	}
 
-	fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x1C), &NumChunks, sizeof(unsigned __int32), nullptr);
+	ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray + 0x1C), &NumChunks, sizeof(__int32), nullptr);
 	return NumChunks;
 }
 
@@ -197,19 +198,19 @@ static unsigned __int64 GetObjectPtr(HANDLE ProcessHandle, __int32 Index) {
 	}
 
 	unsigned __int64 ObjectArrayArray = 0;
-	NTSTATUS Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray), &ObjectArrayArray, sizeof(unsigned __int64), nullptr);
+	NTSTATUS Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(GUObjectArray), &ObjectArrayArray, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return 0;
 	}
 
 	unsigned __int64 ObjectArray = 0;
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(ObjectArrayArray + ChunkIndex * 8llu), &ObjectArray, sizeof(unsigned __int64), nullptr);
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(ObjectArrayArray + ChunkIndex * 8llu), &ObjectArray, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return 0;
 	}
 
 	unsigned __int64 Object = 0;
-	Status = fZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(ObjectArray + WithinChunkIndex * 0x18llu), &Object, sizeof(unsigned __int64), nullptr);
+	Status = ZwReadVirtualMemory(ProcessHandle, reinterpret_cast<unsigned __int64*>(ObjectArray + WithinChunkIndex * 0x18llu), &Object, sizeof(unsigned __int64), nullptr);
 	if (NT_ERROR(Status)) {
 		return 0;
 	}
@@ -219,29 +220,7 @@ static unsigned __int64 GetObjectPtr(HANDLE ProcessHandle, __int32 Index) {
 
 void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 
-	auto Peb = reinterpret_cast<PEB*>(__readgsqword(0x60));
-
-	if (!ImageBaseAddress) {
-		ImageBaseAddress = reinterpret_cast<unsigned __int64>(Peb->ImageBaseAddress);
-	}
-
-	auto ImageFilePath = std::wstring(Peb->ProcessParameters->ImagePathName.Buffer, Peb->ProcessParameters->ImagePathName.Length);
-
-	auto Position = ImageFilePath.find_last_of(L'\\') + 1;
-	auto ImageFileName = ImageFilePath.substr(Position);
-
-	Position = ImageFileName.find_last_of(L'.');
-	ImageFileName = ImageFileName.substr(0, Position).append(L"-GObjects-Dump.txt").c_str();
-
-	__debugbreak();
-
-	std::wstring str{L"C:\\Users\\15669\\Desktop\\Wuthering Waves\\"};		// TODO Need to modify
-	auto FileName = str.append(ImageFileName).c_str();
-
-	auto FileHandle = CreateFile(FileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-	if (FileHandle == nullptr || FileHandle == INVALID_HANDLE_VALUE) {
-		return;
-	}
+	std::ofstream OutputFile("C:\\Users\\15669\\Desktop\\app\\UE-Object.txt", std::ofstream::out);
 
 	for (__int32 i = 0; i < GetNumElements(ProcessHandle); i++) {
 
@@ -260,27 +239,13 @@ void DumpUObjectByGUObjectArray(HANDLE ProcessHandle) {
 			continue;
 		}
 
-		//std::string StaticClassName = "";
+		char buf[PAGE_SIZE] = "";
 
-		//StaticClassName = ClassName;
-		//StaticClassName += " ";
-		//StaticClassName += OuterObjectName;
+		sprintf_s(buf, PAGE_SIZE, "[%08lu]\taddress: %08llx\tclass: %-30s\tObjectName: %s\n", i, UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
 
-		//if (!OuterObjectName.compare("CoreUObject.Struct")) {
-
-		//}
-
-		char buf[256ull << 1] = "";
-		sprintf_s(buf, 256ull << 1, "[%08lu]\taddress: %08llx\tclass: %-30s\tObjectName: %s\n", i, UObjectAddress, ClassName.c_str(), OuterObjectName.c_str());
-
-		auto NumberOfBytesToWrite = 0ul;
-		WriteFile(FileHandle, buf, strnlen_s(buf, 256), &NumberOfBytesToWrite, nullptr);
-
-		//printf_s(buf);
+		OutputFile << buf;
 	}
 
-	FlushFileBuffers(FileHandle);
-
-	CloseHandle(FileHandle);
+	OutputFile.close();
 }
 

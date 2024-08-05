@@ -40,9 +40,11 @@ struct RTL_PROCESS_MODULES {
 using fnZwQuerySystemInformation = NTSTATUS(*)(SYSTEM_INFORMATION_CLASS SystemInfoClass, PVOID SystemInfoBuffer, ULONG SystemInfoBufferSize, PULONG BytesReturned);
 using fnZwAllocateVirtualMemory = NTSTATUS(*)(HANDLE ProcessHandle, PVOID* BaseAddress, ULONG_PTR ZeroBits, PSIZE_T RegionSize, ULONG AllocationType, ULONG Protect);
 using fnZwReadVirtualMemory = NTSTATUS(*)(HANDLE ProcessHandle, PVOID BaseAddress, PVOID Buffer, ULONG NumberOfBytesToRead, PULONG NumberOfBytesReaded);
+using fnZwFreeVirtualMemory = NTSTATUS(*)(HANDLE ProcessHandle, PVOID* BaseAddress, PSIZE_T RegionSize, ULONG FreeType);
 using fnZwWriteVirtualMemory = NTSTATUS(*)(HANDLE ProcessHandle, PVOID BaseAddress, PVOID Buffer, SIZE_T NumberOfBytesToWrite, PSIZE_T NumberOfBytesWritten);
 
-inline fnZwQuerySystemInformation fZwQuerySystemInformation;
-inline fnZwAllocateVirtualMemory fZwAllocateVirtualMemory;
-inline fnZwReadVirtualMemory fZwReadVirtualMemory;
-inline fnZwWriteVirtualMemory fZwWriteVirtualMemory;
+inline fnZwQuerySystemInformation ZwQuerySystemInformation;
+inline fnZwAllocateVirtualMemory ZwAllocateVirtualMemory;
+inline fnZwFreeVirtualMemory ZwFreeVirtualMemory;
+inline fnZwReadVirtualMemory ZwReadVirtualMemory;
+inline fnZwWriteVirtualMemory ZwWriteVirtualMemory;

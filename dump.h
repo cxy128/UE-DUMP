@@ -1,5 +1,9 @@
 #pragma once
 
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+
 enum {
 
 	NAME_SIZE = 1024
@@ -13,9 +17,14 @@ struct FName {
 
 struct FNameEntryHeader {
 
-	unsigned __int16 bIsWide : 1;
-	unsigned __int16 LowercaseProbeHash : 5;
-	unsigned __int16 Len : 10;
+	union {
+
+		unsigned __int32 bIsWide : 1;
+		unsigned __int32 LowercaseProbeHash : 5;
+		unsigned __int32 Len : 10;
+	};
+
+	unsigned __int32 value;
 };
 
 struct FNameEntry {
@@ -24,19 +33,18 @@ struct FNameEntry {
 
 	union {
 
-		char	AnsiName[NAME_SIZE];
-		wchar_t	WideName[NAME_SIZE];
-
-	}name;
+		char AnsiName[NAME_SIZE];
+		wchar_t WideName[NAME_SIZE];
+	};
 };
 
-inline unsigned __int64 ImageBaseAddress = 0x7FF7B5C30000;			// Need to modify
+inline unsigned __int64 ImageBaseAddress = 0x7FF7DE6B0000;
 
-inline unsigned __int64 GNameOffset = 0x4A56400;					// Need to modify
-inline unsigned __int64 GUObjectArrayOffset = 0x4A92740;			// Need to modify
-
+inline unsigned __int64 GNameOffset = 0xBD84D40;
 inline unsigned __int64 GName = ImageBaseAddress + GNameOffset + 0x10;
-inline unsigned __int64 GUObjectArray = ImageBaseAddress + GUObjectArrayOffset + 0x10;  // 0x7FF7DA140000 + 0x747D240 + 0x10
+
+inline unsigned __int64 GUObjectArrayOffset = 0xBD9DD88;
+inline unsigned __int64 GUObjectArray = ImageBaseAddress + GUObjectArrayOffset + 0x10;
 
 static bool GetName(HANDLE ProcessHandle, unsigned __int64 UObjectAddress, std::string& strName);
 

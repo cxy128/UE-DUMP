@@ -1,2 +1,2 @@
 # UE-DUMP
-The console prints out UE class information
+获取虚幻引擎结构信息
